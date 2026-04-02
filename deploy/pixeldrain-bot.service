@@ -1,0 +1,14 @@
+[Unit]
+Description=Pixeldrain Discord Watch Bot
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/home/botuser/apps/pixeldrain-discord-bot
+ExecStart=/home/botuser/apps/pixeldrain-discord-bot/.venv/bin/python /home/botuser/apps/pixeldrain-discord-bot/bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
