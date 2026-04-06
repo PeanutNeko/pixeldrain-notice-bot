@@ -22,6 +22,7 @@ class WatchManager:
         self.bot = bot
         self._run_lock = asyncio.Lock()
         self._loop = tasks.loop(seconds=60)(self._tick)
+        self._loop.before_loop(self._before_tick)
 
     def start(self) -> None:
         if not self._loop.is_running():
@@ -30,12 +31,11 @@ class WatchManager:
     def stop(self) -> None:
         self._loop.cancel()
 
-    async def _tick(self) -> None:
-        await self.scan_due_watches()
-
-    @_tick.before_loop
     async def _before_tick(self) -> None:
         await self.bot.wait_until_ready()
+
+    async def _tick(self) -> None:
+        await self.scan_due_watches()
 
     async def scan_due_watches(self) -> None:
         if self._run_lock.locked():
@@ -73,7 +73,7 @@ class WatchManager:
             async with aiohttp.ClientSession() as session:
                 try:
                     changed = await self._scan_one(session, watch, send_update=True)
-                except Exception as exc:  # pragma: no cover - defensive
+                except Exception as exc:
                     logger.exception("manual_scan failed: %s", exc)
                     return False, f"掃描失敗：{exc}"
 
