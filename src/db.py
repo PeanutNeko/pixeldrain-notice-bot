@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import aiosqlite
-from typing import Iterable
 
 from config import DATABASE_PATH, DEFAULT_CHANNEL_ID, DEFAULT_INTERVAL_SEC, SEED_WATCH_IDS
 from src.models import WatchRecord, row_to_watch
@@ -40,7 +39,8 @@ async def connect() -> aiosqlite.Connection:
 
 
 async def init_db() -> None:
-    async with await connect() as db:
+    db = await connect()
+    try:
         await db.execute(CREATE_WATCHES)
         await db.execute(CREATE_SNAPSHOTS)
         await db.commit()
@@ -55,6 +55,8 @@ async def init_db() -> None:
                     (share_id, share_id, DEFAULT_CHANNEL_ID, DEFAULT_INTERVAL_SEC),
                 )
             await db.commit()
+    finally:
+        await db.close()
 
 
 async def list_watches(enabled_only: bool = False) -> list[WatchRecord]:
@@ -63,17 +65,23 @@ async def list_watches(enabled_only: bool = False) -> list[WatchRecord]:
         query += " WHERE enabled = 1"
     query += " ORDER BY id"
 
-    async with await connect() as db:
+    db = await connect()
+    try:
         async with db.execute(query) as cur:
             rows = await cur.fetchall()
-    return [row_to_watch(row) for row in rows]
+        return [row_to_watch(row) for row in rows]
+    finally:
+        await db.close()
 
 
 async def get_watch_by_id(watch_id: int) -> WatchRecord | None:
-    async with await connect() as db:
+    db = await connect()
+    try:
         async with db.execute("SELECT * FROM watches WHERE id = ?", (watch_id,)) as cur:
             row = await cur.fetchone()
-    return row_to_watch(row) if row else None
+        return row_to_watch(row) if row else None
+    finally:
+        await db.close()
 
 
 async def upsert_watch(
@@ -82,7 +90,8 @@ async def upsert_watch(
     channel_id: int,
     interval_sec: int,
 ) -> int:
-    async with await connect() as db:
+    db = await connect()
+    try:
         await db.execute(
             '''
             INSERT INTO watches (share_id, label, channel_id, interval_sec, enabled)
@@ -101,57 +110,72 @@ async def upsert_watch(
         async with db.execute("SELECT id FROM watches WHERE share_id = ?", (share_id,)) as cur:
             row = await cur.fetchone()
         return int(row["id"])
+    finally:
+        await db.close()
 
 
 async def delete_watch(watch_id: int) -> bool:
-    async with await connect() as db:
+    db = await connect()
+    try:
         await db.execute("DELETE FROM snapshots WHERE watch_id = ?", (watch_id,))
         cur = await db.execute("DELETE FROM watches WHERE id = ?", (watch_id,))
         await db.commit()
         return cur.rowcount > 0
+    finally:
+        await db.close()
 
 
 async def set_watch_enabled(watch_id: int, enabled: bool) -> bool:
-    async with await connect() as db:
+    db = await connect()
+    try:
         cur = await db.execute(
             "UPDATE watches SET enabled = ? WHERE id = ?",
             (1 if enabled else 0, watch_id),
         )
         await db.commit()
         return cur.rowcount > 0
+    finally:
+        await db.close()
 
 
 async def update_last_scan(watch_id: int, last_scan_ts: str, last_error: str | None) -> None:
-    async with await connect() as db:
+    db = await connect()
+    try:
         await db.execute(
             "UPDATE watches SET last_scan_ts = ?, last_error = ? WHERE id = ?",
             (last_scan_ts, last_error, watch_id),
         )
         await db.commit()
+    finally:
+        await db.close()
 
 
 async def get_snapshot(watch_id: int) -> dict[str, dict]:
-    async with await connect() as db:
+    db = await connect()
+    try:
         async with db.execute(
             "SELECT * FROM snapshots WHERE watch_id = ?",
             (watch_id,),
         ) as cur:
             rows = await cur.fetchall()
 
-    return {
-        row["path"]: {
-            "name": row["name"],
-            "node_type": row["node_type"],
-            "modified": row["modified"],
-            "file_size": row["file_size"],
-            "sha256_sum": row["sha256_sum"],
+        return {
+            row["path"]: {
+                "name": row["name"],
+                "node_type": row["node_type"],
+                "modified": row["modified"],
+                "file_size": row["file_size"],
+                "sha256_sum": row["sha256_sum"],
+            }
+            for row in rows
         }
-        for row in rows
-    }
+    finally:
+        await db.close()
 
 
 async def replace_snapshot(watch_id: int, snapshot: dict[str, dict]) -> None:
-    async with await connect() as db:
+    db = await connect()
+    try:
         await db.execute("DELETE FROM snapshots WHERE watch_id = ?", (watch_id,))
         await db.executemany(
             '''
@@ -173,3 +197,5 @@ async def replace_snapshot(watch_id: int, snapshot: dict[str, dict]) -> None:
             ],
         )
         await db.commit()
+    finally:
+        await db.close()

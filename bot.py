@@ -21,14 +21,8 @@ class PixeldrainWatchBot(commands.Bot):
         await init_db()
         await self.load_extension("src.commands.watch_commands")
 
-        if COMMAND_SYNC_GLOBAL:
-            synced = await self.tree.sync()
-            self.logger.info("Synced %s global command(s)", len(synced))
-        else:
-            guild = discord.Object(id=DEV_GUILD_ID)
-            self.tree.copy_global_to(guild=guild)
-            synced = await self.tree.sync(guild=guild)
-            self.logger.info("Synced %s guild command(s) to %s", len(synced), DEV_GUILD_ID)
+        synced = await self.tree.sync()
+        self.logger.info("Synced %s global command(s)", len(synced))
 
         self.watch_manager = WatchManager(self)
         self.watch_manager.start()
