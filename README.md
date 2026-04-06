@@ -454,7 +454,6 @@ journalctl -u pixeldrain-bot -n 100 --no-pager
 
 # 最後提醒
 
-- `.env` 不要上傳到 GitHub
 - Discord Bot Token 不要外流
 - 如果你重置了 token，記得主機上的 `.env` 也要一起改
 - 如果哪天 Pixeldrain API 行為變了，優先先看 `src/pixeldrain_client.py`
